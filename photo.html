@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>表情拍摄助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        
+        .subtitle {
+            text-align: center;
+            opacity: 0.9;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+        
+        .progress-bar {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .progress-step {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .progress-step.active {
+            background: #fff;
+            color: #764ba2;
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .progress-step.completed {
+            background: #4ade80;
+            color: #fff;
+        }
+        
+        .camera-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 3/4;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #canvas {
+            display: none;
+        }
+        
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        
+        .face-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 260px;
+            border: 3px dashed rgba(255,255,255,0.6);
+            border-radius: 50%;
+        }
+        
+        .expression-prompt {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 12px 24px;
+            border-radius: 30px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .expression-prompt .emoji {
+            font-size: 2rem;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .expression-prompt .text {
+            font-size: 0.9rem;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .btn {
+            padding: 16px 32px;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn-primary {
+            background: #fff;
+            color: #764ba2;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0,0,0,0.3);
+        }
+        
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+        
+        .btn-capture {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #fff;
+            margin: 0 auto;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .btn-capture::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 4px solid #764ba2;
+        }
+        
+        .btn-capture:active {
+            transform: scale(0.95);
+        }
+        
+        .preview-container {
+            display: none;
+            text-align: center;
+        }
+        
+        .preview-image {
+            width: 100%;
+            aspect-ratio: 3/4;
+            object-fit: cover;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .preview-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        
+        .preview-actions .btn {
+            flex: 1;
+        }
+        
+        .result-container {
+            display: none;
+            text-align: center;
+        }
+        
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .result-item {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 10px;
+        }
+        
+        .result-item img {
+            width: 100%;
+            aspect-ratio: 3/4;
+            object-fit: cover;
+            border-radius: 10px;
+        }
+        
+        .result-item .label {
+            margin-top: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .success-message {
+            background: rgba(74, 222, 128, 0.2);
+            border: 2px solid #4ade80;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .success-message .icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        
+        .start-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .start-screen .icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+        }
+        
+        .start-screen p {
+            margin-bottom: 30px;
+            line-height: 1.6;
+            opacity: 0.9;
+        }
+        
+        .tips {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 15px;
+            text-align: left;
+        }
+        
+        .tips h3 {
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            opacity: 0.9;
+        }
+        
+        .tips ul {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            padding-left: 20px;
+        }
+        
+        .tips li {
+            margin-bottom: 5px;
+        }
+        
+        .countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 8rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 30px rgba(0,0,0,0.5);
+            animation: pulse 1s ease-in-out;
+            display: none;
+        }
+        
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        .flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #fff;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .flash.active {
+            animation: flash 0.3s ease-out;
+        }
+        
+        @keyframes flash {
+            0% { opacity: 0.8; }
+            100% { opacity: 0; }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .camera-switch {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.5);
+            border: none;
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 开始界面 -->
+        <div id="startScreen" class="start-screen">
+            <div class="icon">📸</div>
+            <h1>表情拍摄助手</h1>
+            <p>我将引导你拍摄两张表情照片：<br>😊 开心的笑容 和 😣 痛苦的表情<br>拍完后可以保存到手机相册</p>
+            <button class="btn btn-primary" onclick="startCamera()">
+                🎬 开始拍摄
+            </button>
+            <div class="tips">
+                <h3>💡 拍摄小贴士</h3>
+                <ul>
+                    <li>确保光线充足</li>
+                    <li>将脸部对准椭圆形引导框</li>
+                    <li>表情尽量夸张一些效果更好</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 拍摄界面 -->
+        <div id="captureScreen" class="hidden">
+            <h1>表情拍摄助手</h1>
+            <p class="subtitle" id="stepTitle">第 1 步：拍摄笑容</p>
+            
+            <div class="progress-bar">
+                <div class="progress-step active" id="step1">1</div>
+                <div class="progress-step" id="step2">2</div>
+            </div>
+            
+            <div class="camera-container">
+                <video id="video" autoplay playsinline></video>
+                <button class="camera-switch" onclick="switchCamera()">🔄</button>
+                <div class="overlay">
+                    <div class="face-guide"></div>
+                    <div class="expression-prompt" id="expressionPrompt">
+                        <span class="emoji">😊</span>
+                        <span class="text">请露出开心的笑容</span>
+                    </div>
+                </div>
+                <div class="countdown" id="countdown"></div>
+            </div>
+            
+            <canvas id="canvas"></canvas>
+            
+            <div class="controls">
+                <button class="btn btn-capture" onclick="captureWithCountdown()"></button>
+                <p style="text-align: center; opacity: 0.8; font-size: 0.9rem;">点击按钮拍照（3秒倒计时）</p>
+            </div>
+        </div>
+        
+        <!-- 预览界面 -->
+        <div id="previewScreen" class="preview-container">
+            <h1>预览照片</h1>
+            <p class="subtitle" id="previewTitle">笑容照片</p>
+            
+            <img id="previewImage" class="preview-image" src="" alt="预览">
+            
+            <div class="preview-actions">
+                <button class="btn btn-secondary" onclick="retake()">🔄 重拍</button>
+                <button class="btn btn-primary" onclick="confirmPhoto()">✓ 确认使用</button>
+            </div>
+        </div>
+        
+        <!-- 结果界面 -->
+        <div id="resultScreen" class="result-container">
+            <h1>拍摄完成！</h1>
+            
+            <div class="success-message">
+                <div class="icon">🎉</div>
+                <p>两张表情照片都拍好啦！</p>
+            </div>
+            
+            <div class="result-grid">
+                <div class="result-item">
+                    <img id="smileResult" src="" alt="笑容">
+                    <div class="label">😊 笑容</div>
+                </div>
+                <div class="result-item">
+                    <img id="painResult" src="" alt="痛苦">
+                    <div class="label">😣 痛苦</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="btn btn-primary" onclick="downloadPhoto('smile')">💾 保存笑容照片</button>
+                <button class="btn btn-primary" onclick="downloadPhoto('pain')">💾 保存痛苦照片</button>
+                <button class="btn btn-secondary" onclick="downloadAll()">📥 保存全部照片</button>
+                <button class="btn btn-secondary" onclick="restart()">🔄 重新拍摄</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="flash" id="flash"></div>
+
+    <script>
+        let video, canvas, ctx;
+        let currentStep = 1; // 1 = 笑容, 2 = 痛苦
+        let smilePhoto = null;
+        let painPhoto = null;
+        let stream = null;
+        let facingMode = 'user'; // 'user' = 前置, 'environment' = 后置
+        
+        const expressions = {
+            1: { emoji: '😊', text: '请露出开心的笑容', title: '笑容' },
+            2: { emoji: '😣', text: '请做出痛苦的表情', title: '痛苦' }
+        };
+        
+        function init() {
+            video = document.getElementById('video');
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+        }
+        
+        async function startCamera() {
+            init();
+            
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 1080 },
+                        height: { ideal: 1440 }
+                    },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+                
+                document.getElementById('startScreen').classList.add('hidden');
+                document.getElementById('captureScreen').classList.remove('hidden');
+                
+                updateUI();
+            } catch (err) {
+                alert('无法访问摄像头，请确保已授予摄像头权限。\n\n错误信息: ' + err.message);
+            }
+        }
+        
+        async function switchCamera() {
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 1080 },
+                        height: { ideal: 1440 }
+                    },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+            } catch (err) {
+                alert('切换摄像头失败: ' + err.message);
+                facingMode = facingMode === 'user' ? 'environment' : 'user';
+            }
+        }
+        
+        function updateUI() {
+            const exp = expressions[currentStep];
+            document.getElementById('stepTitle').textContent = `第 ${currentStep} 步：拍摄${exp.title}`;
+            document.getElementById('expressionPrompt').innerHTML = `
+                <span class="emoji">${exp.emoji}</span>
+                <span class="text">${exp.text}</span>
+            `;
+            
+            document.getElementById('step1').className = currentStep >= 1 ? 
+                (currentStep > 1 ? 'progress-step completed' : 'progress-step active') : 'progress-step';
+            document.getElementById('step2').className = currentStep >= 2 ? 
+                (currentStep > 2 ? 'progress-step completed' : 'progress-step active') : 'progress-step';
+        }
+        
+        function captureWithCountdown() {
+            const countdownEl = document.getElementById('countdown');
+            let count = 3;
+            
+            countdownEl.style.display = 'block';
+            countdownEl.textContent = count;
+            countdownEl.style.animation = 'none';
+            void countdownEl.offsetWidth;
+            countdownEl.style.animation = 'pulse 1s ease-in-out';
+            
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownEl.textContent = count;
+                    countdownEl.style.animation = 'none';
+                    void countdownEl.offsetWidth;
+                    countdownEl.style.animation = 'pulse 1s ease-in-out';
+                } else {
+                    clearInterval(timer);
+                    countdownEl.style.display = 'none';
+                    capturePhoto();
+                }
+            }, 1000);
+        }
+        
+        function capturePhoto() {
+            // 闪光效果
+            const flash = document.getElementById('flash');
+            flash.classList.add('active');
+            setTimeout(() => flash.classList.remove('active'), 300);
+            
+            // 设置画布尺寸
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // 如果是前置摄像头，需要镜像翻转
+            if (facingMode === 'user') {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+            
+            ctx.drawImage(video, 0, 0);
+            
+            // 重置变换
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            
+            // 显示预览
+            document.getElementById('previewImage').src = dataUrl;
+            document.getElementById('previewTitle').textContent = expressions[currentStep].title + '照片';
+            
+            document.getElementById('captureScreen').classList.add('hidden');
+            document.getElementById('previewScreen').style.display = 'block';
+        }
+        
+        function retake() {
+            document.getElementById('previewScreen').style.display = 'none';
+            document.getElementById('captureScreen').classList.remove('hidden');
+        }
+        
+        function confirmPhoto() {
+            const dataUrl = document.getElementById('previewImage').src;
+            
+            if (currentStep === 1) {
+                smilePhoto = dataUrl;
+                currentStep = 2;
+                updateUI();
+                document.getElementById('previewScreen').style.display = 'none';
+                document.getElementById('captureScreen').classList.remove('hidden');
+            } else {
+                painPhoto = dataUrl;
+                showResults();
+            }
+        }
+        
+        function showResults() {
+            // 停止摄像头
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
+            document.getElementById('smileResult').src = smilePhoto;
+            document.getElementById('painResult').src = painPhoto;
+            
+            document.getElementById('previewScreen').style.display = 'none';
+            document.getElementById('captureScreen').classList.add('hidden');
+            document.getElementById('resultScreen').style.display = 'block';
+        }
+        
+        function downloadPhoto(type) {
+            const dataUrl = type === 'smile' ? smilePhoto : painPhoto;
+            const filename = type === 'smile' ? '笑容照片.jpg' : '痛苦照片.jpg';
+            
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        function downloadAll() {
+            downloadPhoto('smile');
+            setTimeout(() => downloadPhoto('pain'), 500);
+        }
+        
+        function restart() {
+            currentStep = 1;
+            smilePhoto = null;
+            painPhoto = null;
+            
+            document.getElementById('resultScreen').style.display = 'none';
+            document.getElementById('startScreen').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
